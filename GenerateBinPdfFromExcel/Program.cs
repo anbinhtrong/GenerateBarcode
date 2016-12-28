@@ -87,7 +87,7 @@ namespace GenerateBinPdfFromExcel
         static void GeneratePdfFile(List<BinModel> bins)
         {
             //declare pdf file
-
+            var stream = new MemoryStream();
             var baseFontTimesRoman = BaseFont.CreateFont(BaseFont.HELVETICA, BaseFont.CP1252, false);
             var font10 = new iTextSharp.text.Font(baseFontTimesRoman, 30f, iTextSharp.text.Font.BOLD);
             var binFont = FontFactory.GetFont("Calibri", 30f);
@@ -96,7 +96,8 @@ namespace GenerateBinPdfFromExcel
             //pagesize: 4*6
             var pageSize = new iTextSharp.text.Rectangle(432, 288);//new Rectangle(216, 72);
             var document = new Document(pageSize, 1, 1, 15, 1);
-            PdfWriter.GetInstance(document, new FileStream($"BinMove2-{DateTime.Now.Ticks}.pdf", FileMode.Create));
+            
+            PdfWriter.GetInstance(document, stream);
             document.Open();
             foreach (var bin in bins)
             {
@@ -158,8 +159,25 @@ namespace GenerateBinPdfFromExcel
             }
             document.Close();
 
+            var outStream = new MemoryStream();
+            PdfReader reader = new PdfReader(stream.ToArray());
+            PdfStamper stamper = new PdfStamper(reader, outStream);
 
+            for (int i = 1; i <= reader.NumberOfPages; i++)
+            {
+                PdfDictionary pageDict = reader.GetPageN(i);
+                int desiredRot = -90; // 90 degrees clockwise
+                PdfNumber rotation = pageDict.GetAsNumber(PdfName.ROTATE);
+                if (rotation != null)
+                {
+                    desiredRot += rotation.IntValue;
+                    desiredRot %= 360; // 0, 90, 180, 270
+                }
+                pageDict.Put(PdfName.ROTATE, new PdfNumber(desiredRot));
+            }
 
+            stamper.Close();
+            File.WriteAllBytes("OSBin.pdf", outStream.ToArray());
         }
 
         static void GenerateBarcodeNoLable(Stream stream, string source, TYPE type = TYPE.CODE128, int imageWidth = 200, int imageHeight = 50, string strImageFormat = "jpeg", AlignmentPositions positions = AlignmentPositions.CENTER)
